@@ -368,6 +368,9 @@ class main(threading.Thread):
     for thread_row in self.sqlite.execute('SELECT article_uid FROM articles WHERE parent = "" OR parent = article_uid ORDER BY last_update DESC').fetchall():
       if thread_row[0] not in self.regenerate_threads:
         self.regenerate_threads.append(thread_row[0])
+    for thread_row in self.sqlite.execute('SELECT parent FROM articles WHERE parent != "" AND parent != article_uid AND parent NOT IN (SELECT article_uid FROM articles) GROUP BY parent').fetchall():
+      if thread_row[0] not in self.regenerate_threads:
+        self.regenerate_threads.append(thread_row[0])
 
   def shutdown(self):
     self.running = False
@@ -1104,8 +1107,21 @@ class main(threading.Thread):
       # FIXME: create temporary root post here? this will never get called on startup because it checks for root posts only
       # FIXME: ^ alternatives: wasted threads in admin panel? red border around images in pic log? actually adding temporary root post while processing?
       #root_row = (root_uid, 'none', 'root post not yet available', 0, 'root post not yet available', '', '', 0, '')
-      self.log(self.logger.INFO, 'root post not yet available: %s, should create temporary root post here' % root_uid)
-      return
+      #self.log(self.logger.INFO, 'root post not yet available: %s, should create temporary root post here' % root_uid)
+      #return
+      self.log(self.logger.INFO, 'root post not yet available: %s, creating temporary root post' % root_uid)
+      root_row = (
+        root_uid,
+        'N/A',
+        'Temporary replacement until root post becomes available.',
+        int(time.time()),
+        'Temporary replacement until root post becomes available.',
+        '',
+        '',
+        '',
+        self.sqlite.execute('SELECT group_id FROM articles WHERE parent = ? LIMIT 1', (root_uid,)).fetchone()[0],
+        ''
+      )
 
     if self.sqlite.execute('SELECT group_id FROM groups WHERE group_id = ? AND blocked = 1', (root_row[8],)).fetchone():
       path = os.path.join(self.output_directory, 'thread-%s.html' % root_message_id_hash[:10])
